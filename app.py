@@ -1,7 +1,7 @@
 # streamlit_heatmap_app.py
 """Streamlit app: upload an Excel file (X, Y, Z columns),
     detect the first non‑empty cell automatically,
-    draw a rainbow tricontour heatmap inside a radius n (cm),
+    draw a rainbow tricontour heatmap inside a radius n (inch),
     overlay measurement points & circle boundary,
     and list rows that were skipped with reasons.
 
@@ -26,7 +26,7 @@ st.set_page_config(page_title="Excel Heatmap Viewer", layout="centered")
 st.title("Excel Heatmap Viewer")
 st.write(
     "テーブルの左上セルを **自動検出** して X, Y, Z を読み込み、"
-    "半径 n cm 以内のヒートマップを表示します。"
+    "半径 n inch 以内のヒートマップを表示します。"
 )
 
 # ------------------------------------------------------------
@@ -44,7 +44,7 @@ if uploaded_file:
         sheet_names = xls.sheet_names
 
     sheet_name = sidebar.selectbox("シートを選択", sheet_names, index=0)
-    radius_cm: float = sidebar.number_input("半径 n (cm)", min_value=1.0, value=50.0)
+    radius_inch: float = sidebar.number_input("半径 n (inch) (少し大きめに設定してください)", min_value=1.0, value=50.0)
     plot_btn = sidebar.button("ヒートマップを描画")
 else:
     sidebar.info("まず Excel ファイルをアップロードしてください。")
@@ -54,7 +54,7 @@ else:
 # Helper – load & preprocess
 # ------------------------------------------------------------
 
-def load_and_prepare(df_raw: pd.DataFrame, radius_cm: float) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+def load_and_prepare(df_raw: pd.DataFrame, radius_inch: float) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Return (data_ok, data_ng, meta) where
     * data_ok ― rows to plot (numeric, inside circle)
     * data_ng ― rows skipped with a '理由' column
@@ -85,7 +85,7 @@ def load_and_prepare(df_raw: pd.DataFrame, radius_cm: float) -> tuple[pd.DataFra
     # ----- radius filter (only rows where cast succeeded) -----
     r = np.sqrt(num.loc[~failed_cast, headers[0]] ** 2 + num.loc[~failed_cast, headers[1]] ** 2)
     outside_circle = pd.Series(False, index=num.index)
-    outside_circle.loc[~failed_cast] = r > radius_cm
+    outside_circle.loc[~failed_cast] = r > radius_inch
 
     keep = (~failed_cast) & (~outside_circle)
 
@@ -113,7 +113,7 @@ if plot_btn and uploaded_file:
             df_raw = pd.read_excel(fh, sheet_name=sheet_name, header=None, engine="openpyxl")
 
         try:
-            data_ok, data_ng, meta = load_and_prepare(df_raw, radius_cm)
+            data_ok, data_ng, meta = load_and_prepare(df_raw, radius_inch)
         except Exception as e:
             st.error(str(e))
             st.stop()
@@ -134,17 +134,17 @@ if plot_btn and uploaded_file:
         # measurement points
         ax.plot(x, y, "k.", ms=4)
         # circle boundary
-        circle = plt.Circle((0, 0), radius_cm, color="k", lw=2, fill=False)
+        circle = plt.Circle((0, 0), radius_inch, color="k", lw=2, fill=False)
         ax.add_patch(circle)
 
         # axis formatting
         ax.set_xlabel(meta["headers"][0], fontsize=14, fontweight="bold")
         ax.set_ylabel(meta["headers"][1], fontsize=14, fontweight="bold")
-        ax.set_title(f"Heatmap (radius ≤ {radius_cm} cm)", fontsize=16, pad=12)
+        ax.set_title(f"Heatmap (radius ≤ {radius_inch} inch)", fontsize=16, pad=12)
         ax.axis("equal")
-        ax.set_xlim(-radius_cm, radius_cm)
-        ax.set_ylim(-radius_cm, radius_cm)
-        ticks = np.arange(-radius_cm, radius_cm + 1, radius_cm / 3)
+        ax.set_xlim(-radius_inch, radius_inch)
+        ax.set_ylim(-radius_inch, radius_inch)
+        ticks = np.arange(-radius_inch, radius_inch + 1, radius_inch / 3)
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
         ax.grid(color="gray", linestyle="-", linewidth=1, alpha=0.5)
@@ -156,11 +156,11 @@ if plot_btn and uploaded_file:
 
         st.pyplot(fig)
 
-        # diagnostics expander
-        with st.expander("内部情報 (デバッグ用)"):
-            st.write(f"データ開始セル: **{meta['excel_cell']}**")
-            st.write("検出した列ラベル:", meta["headers"])
-            st.write(f"描画点数: {len(data_ok)} / 総行数: {len(df_raw)}")
+        # # diagnostics expander
+        # with st.expander("内部情報 (デバッグ用)"):
+        #     st.write(f"データ開始セル: **{meta['excel_cell']}**")
+        #     st.write("検出した列ラベル:", meta["headers"])
+        #     st.write(f"描画点数: {len(data_ok)} / 総行数: {len(df_raw)}")
 
         # skipped rows
         if not data_ng.empty:
