@@ -127,20 +127,24 @@ if plot_btn and uploaded_file:
 
         # ----- create figure -----
         fig, ax = plt.subplots(figsize=(6, 6))
-        # グラフと余白を調整してカラーバー領域を確保
         fig.subplots_adjust(right=0.85)
 
+        # ----- draw heatmap (grid below) -----
+        ax.set_axisbelow(True)
         if len(x) >= 3:
             triang = tri.Triangulation(x, y)
             cont = ax.tricontourf(
-                triang, z, levels=15, cmap="rainbow_r", antialiased=True
+                triang, z, levels=15, cmap="gist_rainbow", antialiased=True, zorder=1
             )
         else:
-            cont = ax.scatter(x, y, c=z, cmap="rainbow_r", s=40)
+            cont = ax.scatter(x, y, c=z, cmap="gist_rainbow", s=40, zorder=1)
+
+        # グリッドを不透明で下に描画
+        ax.grid(color="gray", linestyle="-", linewidth=1, alpha=1.0, zorder=0)
 
         # measurement points & circle
-        ax.plot(x, y, "k.", ms=4)
-        ax.add_patch(plt.Circle((0, 0), radius_inch, color="k", lw=2, fill=False))
+        ax.plot(x, y, "k.", ms=4, zorder=2)
+        ax.add_patch(plt.Circle((0, 0), radius_inch, color="k", lw=2, fill=False, zorder=2))
 
         # ----- range & ticks -----
         plot_range = radius_inch + margin_inch
@@ -159,7 +163,6 @@ if plot_btn and uploaded_file:
         # labels
         ax.set_xlabel(meta["headers"][0], fontsize=14, fontweight="bold")
         ax.set_ylabel(meta["headers"][1], fontsize=14, fontweight="bold")
-        ax.grid(color="gray", linestyle="-", linewidth=1, alpha=0.5)
 
         # ----- colorbar: グラフ高さにピッタリ合わせ外側に配置 -----
         cbar = fig.colorbar(cont, ax=ax, fraction=0.05, pad=0.02)
