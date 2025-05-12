@@ -1,13 +1,3 @@
-# streamlit_heatmap_app.py
-"""Streamlit app: upload an Excel file (X, Y, Z columns),
-    detect the first non-empty cell automatically,
-    draw a rainbow tricontour heatmap inside a radius n (inch) with extra margin m,
-    overlay measurement points & circle boundary,
-    and list rows that were skipped with reasons.
-
-2025-05-14  目盛り間隔 tick_step をユーザー設定可能に
-Author: ChatGPT
-"""
 from __future__ import annotations
 
 from io import BytesIO
@@ -23,6 +13,14 @@ from openpyxl.utils import get_column_letter
 # Streamlit page settings
 # ------------------------------------------------------------
 st.set_page_config(page_title="Excel Heatmap Viewer", layout="centered")
+
+# ------------------------------------------------------------
+# グローバルフォント設定 (軸・カラーバーの文字を統一)
+# ------------------------------------------------------------
+plt.rcParams.update({
+    'font.family': 'sans-serif',  # お好みのフォントに変更可
+    'font.size': 12,
+})
 
 st.title("Excel Heatmap Viewer")
 st.write(
@@ -41,7 +39,6 @@ uploaded_file = sidebar.file_uploader(
 )
 
 if uploaded_file:
-    # Excel のシート名を取得して selectbox に反映
     with BytesIO(uploaded_file.read()) as fh:
         xls = pd.ExcelFile(fh, engine="openpyxl")
         sheet_names = xls.sheet_names
@@ -53,7 +50,7 @@ if uploaded_file:
     margin_inch: float = sidebar.number_input(
         "余白 m (inch)", min_value=0.0, value=2.0
     )
-    tick_step: float = sidebar.number_input(        # ★ 追加
+    tick_step: float = sidebar.number_input(
         "目盛り間隔 d (inch, 0 で自動)", min_value=0.0, value=0.0
     )
     plot_btn = sidebar.button("ヒートマップを描画")
@@ -107,7 +104,6 @@ def load_and_prepare(
 
     return data_ok, data_ng, {"excel_cell": excel_cell, "headers": headers}
 
-
 # ------------------------------------------------------------
 # Main logic – triggered by button
 # ------------------------------------------------------------
@@ -130,15 +126,17 @@ if plot_btn and uploaded_file:
         z = data_ok.iloc[:, 2].to_numpy()
 
         # ----- create figure -----
-        fig, ax = plt.subplots(figsize=(6, 6), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=(6, 6))
+        # グラフと余白を調整してカラーバー領域を確保
+        fig.subplots_adjust(right=0.85)
 
         if len(x) >= 3:
             triang = tri.Triangulation(x, y)
             cont = ax.tricontourf(
-                triang, z, levels=15, cmap="rainbow", antialiased=True
+                triang, z, levels=15, cmap="rainbow_r", antialiased=True
             )
         else:
-            cont = ax.scatter(x, y, c=z, cmap="rainbow", s=40)
+            cont = ax.scatter(x, y, c=z, cmap="rainbow_r", s=40)
 
         # measurement points & circle
         ax.plot(x, y, "k.", ms=4)
@@ -150,25 +148,21 @@ if plot_btn and uploaded_file:
         ax.set_ylim(-plot_range, plot_range)
         ax.set_aspect("equal", adjustable="box")
 
-        # tick 計算 ― 入力 d>0 なら固定幅, 0 なら自動 7tick
         if tick_step > 0:
             ticks = np.arange(-plot_range, plot_range + tick_step, tick_step)
         else:
             ticks = np.linspace(-plot_range, plot_range, 7)
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
+        ax.tick_params(labelsize=12)
 
         # labels
         ax.set_xlabel(meta["headers"][0], fontsize=14, fontweight="bold")
         ax.set_ylabel(meta["headers"][1], fontsize=14, fontweight="bold")
-        ax.set_title(
-            f"Heatmap (radius ≤ {radius_inch} inch)", fontsize=16, pad=12
-        )
         ax.grid(color="gray", linestyle="-", linewidth=1, alpha=0.5)
 
-        # colorbar
-        cbar = plt.colorbar(cont, ax=ax, pad=0.02)
-        cbar.set_label(meta["headers"][2], fontsize=14, fontweight="bold")
+        # ----- colorbar: グラフ高さにピッタリ合わせ外側に配置 -----
+        cbar = fig.colorbar(cont, ax=ax, fraction=0.05, pad=0.02)
         cbar.ax.tick_params(labelsize=12)
 
         # ---- show in Streamlit ----
