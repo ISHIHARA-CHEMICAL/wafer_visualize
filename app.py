@@ -7,6 +7,7 @@ import matplotlib.tri as tri
 import numpy as np
 import pandas as pd
 import streamlit as st
+from matplotlib.ticker import FormatStrFormatter
 from openpyxl.utils import get_column_letter
 
 # ------------------------------------------------------------
@@ -18,7 +19,7 @@ st.set_page_config(page_title="Excel Heatmap Viewer", layout="centered")
 # グローバルフォント設定 (軸・カラーバーの文字を統一)
 # ------------------------------------------------------------
 plt.rcParams.update({
-    'font.family': 'sans-serif',  # お好みのフォントに変更可
+    'font.family': 'sans-serif',
     'font.size': 12,
 })
 
@@ -125,19 +126,41 @@ if plot_btn and uploaded_file:
         y = data_ok.iloc[:, 1].to_numpy()
         z = data_ok.iloc[:, 2].to_numpy()
 
+        # ① 小数第3位で四捨五入 → 第2位までに
+        z = np.round(z, 2)
+
+        # ② z_min/z_max を取得し、等高線レベルを明示的に作成
+        z_min, z_max = z.min(), z.max()
+        num_levels = 15
+        levels = np.linspace(z_min, z_max, num_levels)
+
         # ----- create figure -----
         fig, ax = plt.subplots(figsize=(6, 6))
         fig.subplots_adjust(right=0.85)
 
-        # ----- draw heatmap (grid below) -----
+        # ----- draw heatmap or scatter -----
         ax.set_axisbelow(True)
         if len(x) >= 3:
             triang = tri.Triangulation(x, y)
             cont = ax.tricontourf(
-                triang, z, levels=15, cmap="gist_rainbow", antialiased=True, zorder=1
+                triang,
+                z,
+                levels=levels,
+                cmap="gist_rainbow",
+                antialiased=True,
+                zorder=1
             )
         else:
-            cont = ax.scatter(x, y, c=z, cmap="gist_rainbow", s=40, zorder=1)
+            cont = ax.scatter(
+                x,
+                y,
+                c=z,
+                cmap="gist_rainbow",
+                s=40,
+                zorder=1,
+                vmin=z_min,
+                vmax=z_max
+            )
 
         # グリッドを不透明で下に描画
         ax.grid(color="gray", linestyle="-", linewidth=1, alpha=1.0, zorder=0)
@@ -158,15 +181,29 @@ if plot_btn and uploaded_file:
             ticks = np.linspace(-plot_range, plot_range, 7)
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
-        ax.tick_params(labelsize=12)
+        ax.tick_params(
+            axis='both',
+            which='both',
+            direction='in',
+            length=6
+        )
 
         # labels
         ax.set_xlabel(meta["headers"][0], fontsize=14, fontweight="bold")
         ax.set_ylabel(meta["headers"][1], fontsize=14, fontweight="bold")
 
-        # ----- colorbar: グラフ高さにピッタリ合わせ外側に配置 -----
-        cbar = fig.colorbar(cont, ax=ax, fraction=0.05, pad=0.02)
-        cbar.ax.tick_params(labelsize=12)
+        # ----- colorbar -----
+        # ③ ２色ごとに(levels[::2])目盛りを表示
+        cbar = fig.colorbar(
+            cont,
+            ax=ax,
+            ticks=levels[::2],
+            format='%.2f',
+            fraction=0.05,
+            pad=0.02
+        )
+        cbar.ax.tick_params(direction='in', length=6, pad=4)
+        cont.set_clim(z_min, z_max)
 
         # ---- show in Streamlit ----
         st.pyplot(fig, bbox_inches="tight", use_container_width=True)
